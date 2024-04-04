@@ -20,19 +20,18 @@ library(broom)
 
 
 # NDMS ordination
-nmds_result <- metaMDS(BCI, distance = "bray", k = 2)
+nmds_result <- metaMDS(BCI, distance = "bray", k = 3)
 ordiplot(nmds_result, type = "t")
 text(nmds_result, display = "sites")
 stressplot(nmds_result)
 nmds_result$stress
 
-# Ordination interactions with environmnet 
+# Ordination interactions with enviromnet 
 ef <- envfit(nmds_result, BCI.env)
 ordiplot(nmds_result, type = "n")
 plot(ef)
 plot(nmds_result, display = "sites")
-plot(ef, p.max = 0.05) # only display variables that are significant
-
+plot(ef, p.max = 0.05) # display significantly clustered variables
 # Visualization of factors
 utm_ord <- ordisurf(nmds_result, BCI.env$UTM.EW, method = "REML", plot = FALSE)
 plot(utm_ord)
