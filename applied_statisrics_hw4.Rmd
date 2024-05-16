@@ -1,0 +1,84 @@
+# Load libraries
+library(readxl)  # For reading Excel files
+library(vegan)   # For ecological community analysis
+library(ggvegan) # For visualizing ecological community analysis results
+
+# Read data from Excel sheets
+animals <- read_excel('D:/Downloads/Grazing_Magierowski_et_al_2015.xls', sheet = 'animals')
+cond <- read_excel('D:/Downloads/Grazing_Magierowski_et_al_2015.xls', sheet = 'cond')
+coord <- read_excel('D:/Downloads/Grazing_Magierowski_et_al_2015.xls', sheet = 'coord')
+raw <- read_excel('D:/Downloads/Grazing_Magierowski_et_al_2015.xls', sheet = 'raw', skip=1)
+
+# Rename columns
+colnames(cond) <- c("SITE","Abstraction","Regulation","Grazing","Fines","Temperature","Conductivity","AvgTurbidity","pH",
+                    "Alkalinity","NitrateNitrite","DRP","N_total","P_total","AvgShading","AvgAlgae","Chl","GrazingRank")
+
+# Merge dataframes
+grazing <- merge(cond, animals)
+grazing <- na.omit(grazing)
+
+# Visualize correlation matrix
+corrplot(cor(grazing[,2:17]))
+
+# Select subsets of data
+cond <- grazing[,1:18]
+animals <- grazing[, 19:length(grazing)]
+
+# Visualize data distribution before and after logarithmic transformation
+boxplot(cond[,2:17], las=2)
+logn <- scale(log(cond[,2:17] + 1), scale = FALSE)
+boxplot(logn, las=2)
+
+# Apply logarithmic transformation
+grazing[,2:17] <- logn
+
+# Perform Canonical Correspondence Analysis (CCA)
+grazing_cca <- cca(grazing[,19:length(grazing)] ~ Abstraction + Grazing + Fines + Temperature + Conductivity + 
+                     AvgTurbidity + pH + N_total + P_total + AvgShading + Chl, data = grazing)
+
+# Assess multicollinearity
+vif.cca(grazing_cca)
+
+# Summarize CCA results
+summary(grazing_cca)
+
+# Visualize inertia
+screeplot(grazing_cca,  bstick = TRUE)
+
+# Plot ordination
+autoplot(grazing_cca, scaling = "sites")
+
+# Plot ordination with different scaling
+plot(grazing_cca, scaling = "sites", main = "scaling 1, 'sites' ")
+plot(grazing_cca, scaling = 2, display = c("species", "cn"), main = "biplot cca, scaling 2")
+
+# Perform dispersion analysis
+anova(grazing_cca)
+anova(grazing_cca, by="term")
+
+# Perform marker analysis
+anova(grazing_cca, by="mar")
+
+# Perform alternative CCA
+grazing_cca_alt <- cca(animals ~ Grazing * Abstraction + Fines + Temperature + Conductivity + 
+                         AvgTurbidity + pH + N_total * P_total + AvgShading + Chl + GrazingRank, data = cond)
+
+# Analyze terms
+anova(grazing_cca_alt, by="term")
+
+# Perform dispersion analysis by markers
+anova(grazing_cca, by="mar")
+
+# Plot canonical correspondence analysis
+plot(grazing_cca_alt, scaling = "sites", type = "text", display = "wa")
+
+# Plot biplot
+plot(grazing_cca_alt, scaling = 2, type = "text", display = "bp")
+
+
+#Despite the unconstrained inertia proportion being slightly larger than the 
+#constrained one, the obtained CCA model is statistically significant, indicating
+#that external factors play a crucial role in population formation.
+
+#External factors with the greatest influence on changes in flora and fauna 
+#composition are abstraction, temperature, and average turbidity.
