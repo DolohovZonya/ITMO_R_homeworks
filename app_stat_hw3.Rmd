@@ -1,0 +1,143 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(vegan)
+
+library(psych)
+library(ggforce)
+library(rstatix)
+library(ggplot2)
+library(plotly)
+library(impute)
+library(factoextra)
+theme_set(theme_bw())
+```
+
+# Analysis of environmental effects on blood composition of lizards
+
+## Introdaction
+
+An analysis using multivariate statistical analysis techniques was performed to evaluate the effects of environment on blood composition of lizards. This report presents the results of the analysis, including data download, preprocessing, visualization, and statistical evaluation of differences in blood composition of lizards from different environments.
+
+## Data loading
+
+```{r}
+df <- read_excel('C:/Users/User/Downloads/Sleepy_lizard.xlsx')
+```
+
+## Data preprocessing
+
+```{r}
+df <- df %>% 
+  select(Treatment, Habitat, Connectivity, Tot_WBC, Het_ABS, Lym_ABS, `H:L Ratio`, Mon_ABS, OthG_ABS, LBSI)
+```
+
+```{r}
+df$Treatment <-  as.factor(df$Treatment)
+df$Habitat <- as.factor(df$Habitat)
+df$Connectivity <-  as.factor(df$Connectivity)
+```
+
+## Data visualization
+
+```{r message=TRUE}
+df_blood <-  df %>% select(-Treatment, -Habitat, -Connectivity)
+boxplot(df_blood, las=2)
+```
+
+## Data normalization
+
+```{r message=TRUE}
+df_blood_log <- as.data.frame(scale(log(df_blood+1), scale = FALSE))
+boxplot(df_blood_log, las=2)
+```
+
+## Checking applicability
+
+```{r message=TRUE}
+dist_blood <- vegdist(df_blood_log, method  = "euclidean")
+PCO_blood <- betadisper(dist_blood, df$Habitat)
+plot(PCO_blood)
+anova(PCO_blood)
+```
+
+```{r}
+dist_blood <- vegdist(df_blood_log, method  = "euclidean")
+PCO_blood <- betadisper(dist_blood, df$Treatment)
+plot(PCO_blood)
+anova(PCO_blood)
+```
+
+```{r}
+dist_blood <- vegdist(df_blood_log, method  = "euclidean")
+PCO_blood <- betadisper(dist_blood, df$Connectivity)
+plot(PCO_blood)
+anova(PCO_blood)
+```
+
+```{r}
+dist_blood <- vegdist(df_blood_log, method  = "euclidean")
+PCO_blood <- betadisper(dist_blood, df$Connectivity * df$Habitat)
+plot(PCO_blood)
+anova(PCO_blood)
+```
+
+## NMDS result visuaization
+
+```{r}
+nmds <- metaMDS(df_blood_log, distance = "euclidean")
+plot(nmds)
+stressplot(nmds)
+```
+
+```{r}
+plot(nmds, display = "sites", type = "n")
+points(nmds, display = "sites", col = df$Treatment)  
+```
+
+## Statistical evaluation of differences
+
+```{r message=TRUE}
+adonis2(df_blood_log ~ Treatment, data = df, method = "euclidean")
+```
+
+```{r}
+adonis2(blood_log_mod ~ Habitat, data = df_mod,  method = "euclidean")
+```
+
+```{r}
+adonis2(blood_log_mod ~ Connectivity, data = df_mod, method = "euclidean")
+```
+
+```{r}
+adonis2(blood_log_mod ~ Habitat * Connectivity, data = df_mod, method = "euclidean")
+```
+
+## PCA
+
+```{r}
+pca_df <- prcomp(df_blood_lognorm)$x %>% 
+  as.data.frame() %>%
+  select(PC1, PC2) %>% 
+  mutate(Treatment = df$Treatment,
+         Habitat = df$Habitat)
+```
+
+```{r}
+ggplot(pca_df, aes(x=PC1, y=PC2, shape=Treatment, col=Habitat))+
+  geom_point(size=3)+
+  geom_mark_ellipse(aes(col = Treatment, fill=Treatment))
+```
+
+# Conclusion
+#The perMANOVA findings indicate a notable contrast in blood makeup among lizards 
+#inhabiting heavily altered landscapes compared to those in unaltered ones. 
+#Yet, within the heavily altered landscape group, there's no discernible difference 
+#in blood composition based on habitat type or connectivity. This outcome aligns 
+#with expectations, as PCA analysis highlights a noticeable distinction between 
+#lizards from various "Treatment" categories, yet those within modified landscapes 
+#exhibit close clustering, indicating minor discrepancies among them.
