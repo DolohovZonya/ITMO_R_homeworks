@@ -1,0 +1,99 @@
+library(tidyr)
+library(dplyr)
+library(vegan)
+library(ggplot2)
+library(gridExtra)
+library(ape)
+library(pvclust)
+library(golubEsets)
+library(clusterProfiler)
+library(boot)
+data(Golub_Merge)
+golub <- data.frame(Golub_Merge)[1:7129]
+rownames(golub) <- paste(rownames(golub), Golub_Merge$ALL.AML, Golub_Merge$BM.PB, Golub_Merge$T.B.cell, sep = '_')
+means <- colMeans(golub)
+mean_df <- data.frame(means)
+
+ggplot(mean_df, aes(x = means)) +
+  geom_density() +
+  labs(x = "Means", y = "Density") +
+  theme_minimal()
+
+golub <- decostand(golub, method = "log")
+
+Manhattan <- dist(golub, method = "manhattan")
+Canberra <- dist(golub, method = "canberra")
+Euclidean <- dist(golub, method = "euclidean")
+
+dists <- list(Manhattan = Manhattan, Canberra = Canberra, Euclidean = Euclidean)
+
+
+chosen_method <- function(dists, cluster_methods) {
+  res_cof <- data.frame(
+    Method = character(),
+    Distance = character(),
+    Correlation = numeric()
+  )
+  
+  for (method in cluster_methods) {
+    for (dist_name in names(dists)) {
+      d <- dists[[dist_name]]
+      hs <- hclust(d, method = method)
+      ph <- as.phylo(hs)
+      corr <- cor(d, as.dist(cophenetic(hs)))
+      res_cof <- rbind(res_cof, data.frame(Method = method,
+                                           Distance = dist_name,
+                                           Correlation = corr))
+      status <- factor(Golub_Merge$ALL.AML, levels = c("AML", "ALL"))
+      plot(ph, type = "phylogram")
+    }
+  }
+  
+  return(res_cof)
+}
+
+methods <- c("single", "average", "complete", "ward.D2")
+chosen_df <- spread(chosen_method(dists, methods), Distance, Correlation)
+chosen_df
+chosen_df[["Mean"]] <- rowMeans(chosen_df[, 2:4])
+
+mval <- max(chosen_df[, -1])
+mind <- which(chosen_df == mval, arr.ind = TRUE)
+row <- chosen_df[mind[1], 1]
+col <- colnames(chosen_df)[mind[2]]
+
+bootstrap1 <- pvclust(t(golub),
+                          method.dist = "manhattan",
+                          method.hclust = "average",
+                          nboot = 100,
+                          parallel = T,
+                          iseed = 42
+)
+
+plot(bootstrap1, cex = 0.8)
+pvrect(bootstrap1, alpha = 0.95, max.only = F)
+
+bootstrap2 <- pvclust(t(golub),
+                       method.dist = "canberra",
+                       method.hclust = "average",
+                       nboot = 100,
+                       parallel = T,
+                       iseed = 42
+)
+
+plot(bootstrap2, cex = 0.8)
+pvrect(bootstrap2, alpha = 0.95, max.only = F)
+
+
+#During this analysis, we explored various clustering methods and distances on
+#the Golub gene expression dataset. We began by visualizing the mean gene expression values
+#and applied a logarithmic transformation to the data before calculating distance matrices. 
+#We considered three different distance metrics: Manhattan, Canberra, and Euclidean distances.
+#The best results in terms of correlation coefficient were obtained when using
+#the Manhattan distance in combination with the UPGMA (Unweighted Pair Group Method with Arithmetic Mean)
+#clustering method. However, inspection suggested that the Canberra distance method with UPGMA
+#clustering was also possibble.
+
+#We applied bootstrapping Manhattan distance + UPGMA and canberra UPGMA. 
+#Both methods exhibit relatively weak performance, as there are no clear statistically 
+#significant clusters related to the AML and ALL groups.
